@@ -1,0 +1,19 @@
+dependencies {
+    api project(":janitor-lib")
+    implementation("io.naraway:accent:${accentVersion}")
+
+    implementation("org.springframework.kafka:spring-kafka:${springKafkaVersion}")
+    implementation("org.springframework.boot:spring-boot:${springBootVersion}")
+    implementation("jakarta.annotation:jakarta.annotation-api:${jakartaAnnotationVersion}")
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId group
+            artifactId project.name
+            version version
+            from components.java
+        }
+    }
+}
