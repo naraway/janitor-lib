@@ -4,9 +4,9 @@ plugins {
 }
 
 ext {
-    janitorVersion = "3.2.0"
+    janitorVersion = "3.2.1"
 
-    accentVersion = "3.2.0"
+    accentVersion = "3.2.+"
     lombokVersion = "1.18.20"
     springBootVersion = "2.6.2"
     springVersion = "5.3.14"
