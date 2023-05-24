@@ -1,9 +1,13 @@
 dependencies {
-    api project(":janitor-lib")
-    implementation("io.naraway:accent:${accentVersion}")
+    api project(":${serviceName}")
 
-    implementation("org.springframework.boot:spring-boot-starter-web:${springBootVersion}")
-    implementation("org.springframework:spring-tx:${springVersion}")
+    implementation "io.naraway:accent:${accentVersion}"
+    implementation "org.springframework.boot:spring-boot-starter-web:${springBootVersion}"
+    implementation "org.springframework:spring-tx:${springVersion}"
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.+'
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.+'
+    testImplementation 'org.codehaus.groovy:groovy-all:3.+'
 }
 
 publishing {

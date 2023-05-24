@@ -1,108 +1,384 @@
-Table of Contents
+# janitor-lib
 
-- [Description](#description)
-- [Note](#note)
-    - [Compatibility](#compatibility)
-    - [Sample](#sample)
-    - [Dependency](#dependency)
-- [Event publish](#event-publish)
-- [Event consume](#event-consume)
-- [Future releases](#future-releases)
+The purpose of janitor-lib is to support a processing standard for issuing and 
+receiving events. It is based on Spring Events and uses
+[Transactional outbox pattern](https://microservices.io/patterns/data/transactional-outbox.html).
+The current version adds support for Kafka and Nats and the janitor-lib-loal 
+module for local development.
 
----
+## Features
 
-## Description
+- A delegator that handles DomainEvent and DataEvent in the NARA Way
+- Support for Kafka and Nats JetStream
 
-janitor는 기존 daysboy의 다음 버전입니다. 전체 기능 중 이벤트 발행 및 수신 후 이벤트 핸들러롤 호출해 주는 로직만 별도로 분리한 모듈입니다.  
-janitor는 `EventStream` 클래스의 `publishEvent` 메소드를 사용하여 이벤트를 발행합니다. ~~이벤트 발행은 Transactional Outbox 패턴을 사용합니다.~~
+## Installation
 
-## Note
-
-janitor는 accent 3.0.0-SNAPSHOT을 사용하고 해당 accent는 json 직렬화를 위해 gson이 아닌 fasterxml을 사용합니다. fasterxml은 gson과 달리 json 역직렬화 시 빈 생성자를 사용하므로 Domain Event와 Data Event에 빈 생성자를 반드시 추가해야 합니다.
-
-### Compatibility
-
-1. `@JanitorEventHander`와 `EventStreamService`는 유지합니다. (토의 필요)
-2. `application.yml`은 별도로 수정하지 않습니다.
-
-### Sample
-
-publisher/consumer 프로젝트를 참고합니다.
-
-### Dependency
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<project>
-    ...
-    <dependencies>
-        <dependency>
-            <groupId>io.naraway</groupId>
-            <artifactId>janitor-jpa-maria</artifactId>
-            <version>3.0.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>io.naraway</groupId>
-            <artifactId>janitor-relay-kafka</artifactId>
-            <version>3.0.0-SNAPSHOT</version>
-        </dependency>
-        ...
-    </dependencies>
-</project>
+```groovy
+implementation 'io.naraway:janitor-lib-local'
+implementation 'io.naraway:janitor-lib-kafka'
+implementation 'io.naraway:janitor-lib-nats'
 ```
-## Event publish
 
-이벤트의 발행은 빈으로 등록되는 `EventStream`을 이용합니다.
+## Configuration
+
+## 2. Configuration
+
+The settings are configured in a Spring Boot Auto Configuration way, so when you
+add the library, it is automatically initialized according to the settings below.
+Below shows the full settings, and if there is no default value, it must be set 
+as required because it will not be initialized according to the 
+`nara.janitor.mode` value. For detailed settings, see 
+[JanitorProperties](./janitor-lib/src/main/java/io/naraway/janitor/autoconfigure/JanitorProperties.java).
+
+```yaml
+nara:
+  janitor:
+
+    # Specifies the mode.
+    # DEFAULT: local (local|kafka|nats)
+    mode: local
+
+    # Specifies a list of bootstrap servers or a list of Nats servers for Kafka.
+    # You can set up multiple servers as a list.
+    # Ex) servers: 127.0.0.1:4222, 127.0.0.1:5222
+    # NO DEFAULT
+    servers:
+
+    # Sets the topic (or subject) of the event when it is issued. Defaults to 
+    # the service name. It is also used as the Consumer Group name. If you 
+    # change the ID value along the way, you will receive all domain events 
+    # from scratch.
+    # Ex) id: io.naraway.${spring.application.name}
+    # NO DEFAULT
+    id:
+
+    # Specifies a list of target topics (or subjects) to receive DomainEvents.
+    # Ex) subscriptions: io.naraway.checkpoint, io.naraway.metro
+    # NO DEFAULT
+    subscriptions:
+
+    # Set the availability and number of partitions based on the event type.
+    event:
+      # Set whether to enable DataEvents and the number of partitions.
+      # DataEvents can be received as Spring Application Events within the 
+      # service even if you do not specify whether to enable them separately.
+      # If enabled, it will issue the event to the Kafka or Nats server, 
+      # otherwise it will not issue it separately.
+      data:
+        # DEFAULT: true (true|false)
+        enabled: true
+        # DEFAULT: 2 (Numeric)
+        partition: 2
+      # Set whether to enable DomainEvent and the number of partitions.
+      # DomainEvents are shared via Kafka or Nats on the same service or an 
+      # external service.
+      domain:
+        # DEFAULT: true (true|false)
+        enabled: false
+        # DEFAULT: 2 (Numeric)
+        partition: 2
+      # Set whether to use RequestEvent (CommandRequest, QueryRequest) and 
+      # the number of partitions.
+      # When a user makes a REST request, an event is fired through Kafka or 
+      # Nats. They are not used by the service, but are collected for analytics
+      # purposes.
+      request:
+        # DEFAULT: true (true|false)
+        enabled: true
+        # DEFAULT: 2 (Numeric)
+        partition: 2
+
+    # Specify the Kafka service settings as a list, KEY=VALUE.
+    # Ex)
+    # kafka-configs:
+    #   - security.protocol=SASL_SSL
+    #   - sasl.mechanism=PLAIN
+    #   - sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username='SB3...O6G' password='tNr...g0e';
+    # NO DEFAULT
+    kafka-configs:
+```
+
+## Usage
+
+### Event Publishing
+
+Event issuance utilizes
+[EventProxy](./janitor-lib/src/main/java/io/naraway/janitor/proxy/EventProxy.java).
+Event types such as MessageProxy and RequestProxy will be supported in the 
+future.
+
+Below is sample code to issue an event. The event that is emitted inherits from
+DomainEvent, DataEvent, CommandRequest, or QueryRequest and is generated by the 
+and the type of event issued changes depending on the type of the parent class. 
+The following shows sample code for each event type. RequestEvent is not 
+explicitly issued; it is handled automatically when a user makes a request via
+REST.
+
+**DataEvent:**
 
 ```java
-@Service
-@Transactional
-public class TenantFlowLogic {
+@NoArgsConstructor
+public class FooEvent extends DataEvent {
     //
-    private final TenantAggregateLogic tenantAggregateLogic;
-    private final EventStream eventStream;
-    
-    public TenantFlowLogic(TenantAggregateLogic tenantAggregateLogic,
-                           EventStream eventStream) {
+    private String entityIdentityName;
+
+    protected FooEvent(DataEventType type, DomainEntity entity) {
         //
-        this.tenantAggregateLogic = tenantAggregateLogic;
-        this.eventStream = eventStream;
+        super(type, entity);
     }
-    
-    public String registerTenant(RegisterTenantCommand command) {
+
+    // ...
+}
+```
+
+**DomainEvent:**
+
+```java
+@NoArgsConstructor
+public class FooProcessEvent extends DomainEvent {
+    //
+    private String processId;
+
+    // ...
+}
+```
+
+An event like the one above can be issued as an event using EventProxy as 
+follows. The EventProxy is automatically registered as a bean in the registered
+as a bean in the Spring Context.
+
+```java
+@Transactional
+@RequiredArgsConstructor
+public class FooFlow {
+    //
+    private final EventProxy eventProxy;
+
+    public String process(String id) {
         //
-        this.tenantAggregateLogic.registerTenant(...);
-        
-        // publish event
-        TenantRegisteredEvent event = new TenantRegisteredEvent(...);
-        this.eventStream.publishEvent(event);
+
+        // ...
+
+        eventProxy.publishEvent(FooProcessEvent.create(process.getId()));
+
+        return process.getId();
     }
 }
 ```
 
-## Event consume
+In normal cases, the action of using EventProxy to publishEvent is issued when
+the Tx succeeds in a transactional context such as JPA/Mongo. The event is not 
+issued in a situation where the Tx is rolled back due to an error. However, if 
+there is no Transactional Context, the event is issued unconditionally.
 
-janitor에서 사용하는 다양한 annotation은 제거되었으며 이벤트 핸들러인 `@EventHandler`만 유지합니다. 기존 라이브러리와의 호환성을 유지하기 위하여 package는 동일합니다.
+### Event Consuming
+
+Below is sample code to issue an event. Typically, you would create a class like
+this under `io.naraway.[drama].facade.event.listener.data` in the facade
+submodule or under `io.naraway.[drama].facade.event.listener.domain` in the 
+facade submodule, you can create a class like this to register and drop 
+listeners. DataEvents can be received regardless of whether you are using Kafka
+or Nats (using Spring Event Listener), and domain events can be received using 
+the Topic or Subject must be specified in the nara.janitor.subscriptions setting
+to be received.
+
+In `application.yml`, specify the incoming Topic or Subject as shown below.
+
+```yaml
+nara:
+  janitor:
+    subscriptions:
+      - io.naraway.drama1
+      - io.naraway.drama2
+
+    # ...
+```
+
+**Event Consuming Handler (Using event module shared):**
+
+If you have registered like this and have the event submodule of drama1 or drama2
+shared, you will receive the code below. Same package The paths must have the 
+same Event type to receive. The method name is irrelevant.
 
 ```java
 @Component
-public class DomainEventHandler {
+@Transactional
+public class Drama1EventHandlers {
     //
     @EventHandler
-    public void on(TenantRegisteredEvent event) {
+    public void on(FooProcessEvent event) {
         //
-        System.out.println("DomainEventHandler.on(TenantRegisteredEvent): " + JsonUtil.toJson(event));
+        // ...
+    }
+
+    // ...
+}
+```
+
+**Event Consuming Handler (Using original source event):**
+
+The class of the original Event is JanitorStreamEvent. You can also use it to get
+the original data and process it in any way you want. You can use the sample code
+below to see the full data.
+
+```java
+@Component
+@Transactional
+public class JanitorEventHandlers {
+    //
+    @EventHandler
+    public void on(JanitorStreamEvent event) {
+        //
+        // ...
+    }
+
+    // ...
+}
+```
+
+The full structure of
+[JanitorStreamEvent](./janitor-lib/src/main/java/io/naraway/janitor/context/JanitorStreamEvent.java)
+is shown below.
+
+```
+┌──────────────────────────────┐ 
+│     JanitorStreamEvent       │ 
+├──────────────────────────────┤ 
+│ String id;                   │ Event identifier (TinyUUID)
+│ OffsetDateTime time;         │ When the event was issued
+│ JanitorEventType eventType;  │ Event types (Data, Domain, Request)
+│ Map<String, String> header;  │ Event header (Tracing Meta Data)
+│ String payloadType;          │ Payload type string
+│ String payload;              │ Payload data (JSON)
+│ String routeKey;             │ Routing key for partitioning
+│ URI source;                  │ Event source URI (*Reserved)
+│ String subject;              │ Event subject (*Reserved)
+└──────────────────────────────┘ 
+```
+
+**Event Consuming Handler (Without shared event module)**
+
+If it is an unshared Event class, you can register a user payload converter to 
+handle it. In the Spring Boot Application initialization process, you can 
+register a user Payload Converter like below. Register a user PayloadConverter 
+as shown below, and implement the PayloadConverter to receive events based on 
+the Payload type. The PayloadConverter contains the logic to convert to the 
+received Payload.
+
+```java
+public class CustomPayloadConverter implements PayloadConverter {
+    //
+    @Override
+    public Object convert(JanitorStreamEvent event) {
+        //
+        String payloadType = event.getPayloadType();
+
+        if ("io.naraway.foo.event.FooProcessEvent".equals(payloadType)) {
+            return CustomFooProcessEvent.fromJson(event.getPayloadType());
+        } else if ("io.naraway.foo.event.FooCompleteEvent".equals(payloadType)) {
+            return CustomFooCompleteEvent.fromJson(event.getPayloadType());
+        }
+
+        return event;
     }
 }
 ```
 
-## Future releases
+Register the created user PayloadConverter as a bean in the Spring context.
 
-향후 추가될 라이브러리는 다음과 같습니다.
+```java
+@Configuration
+public class PayloadConverterConfig {
+    //
+    @Bean
+    public PayloadConverter payloadConverter() {
+        //
+        return new CustomPayloadConverter();
+    }
+}
+```
 
-| Artifact                 | Comment                                                           |
-| ---                      | ---                                                               |
-| janitor-relay-standalone | 카프카와 연결되지 않은 상태에서 이벤트 발행 및 소비를 테스트한다. |
-|                          | maven 또는 gradle에서 profile로 의존성을 관리한다.                |
-| janitor-jpa-*            | 다양한 데이터베이스 스토어를 지원한다.                            |
-| janitor-relay-*          | 다양한 Broker를 지원한다.                                         |
+After the bean is registered, it registers event listeners with the converted 
+payload type. Similarly, regardless of the method name, the parameter types must 
+match the parameter types.
+
+```java
+@Component
+@Transactional
+public class ExternalEventHandlers {
+    //
+    @EventHandler
+    public void on(CustomFooProcessEvent event) {
+        //
+        // ...
+    }
+
+    @EventHandler
+    public void on(CustomFooCompleteEvent event) {
+        //
+        // ...
+    }
+
+    // ...
+}
+```
+
+### Local Development Configuration
+
+To develop locally, the `nara.janitor.mode` value must be set to `local` by 
+default. If not set, `local` is the default. DataEvents can be received by 
+default even in the `local` state. If you want to develop based on issuing and 
+receiving DomainEvents between services, you can start a kafka or nats server 
+on your development server and use it. Otherwise, if you want to use Kafka or 
+Nats in your local environment, you can install it yourself or utilize docker.
+Below are the `docker-compose.yaml` files for Kafka (zookeeper/kafka) and 
+Nats (jetstream). The `docker-compose up -d` command will register and run the 
+service in docker.
+
+**Kafka `docker-compose`:**
+
+```yaml
+version: '2'
+services:
+  zookeeper:
+    container_name: zookeeper
+    image: wurstmeister/zookeeper:3.4.6
+    ports:
+      - "2181:2181"
+  kafka:
+    container_name: kafka
+    image: wurstmeister/kafka:2.13-2.8.1
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ADVERTISED_PORT: 9092
+      KAFKA_CREATE_TOPICS: "test_topic:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+```
+
+**Nats `docker-compose` (jetstream):**
+
+```yaml
+version: "3.5"
+services:
+  nats:
+    container_name: nats
+    image: nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: "--jetstream --http_port 8222 "
+```
+
+## Getting more help
+
+Visit the Nara Way page to get more information about the library:  
+[https://github.com/naraway](https://github.com/naraway)
+
+You can ask any question about Nara Way using the [NARA Way Page](https://www.naraway.io).

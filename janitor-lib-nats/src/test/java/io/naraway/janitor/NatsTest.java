@@ -11,13 +11,14 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 
-public class NatsTest {
+class NatsTest {
     //
-    private static String DEFAULT_URL = "nats://localhost:4222";
+    private static final String DEFAULT_URL = "nats://localhost:4222";
 
     @Test
-    @Disabled
-    public void test() throws Exception {
+    @Disabled("Local test only")
+    @SuppressWarnings({"java:S2925", "java:S2699"})
+    void test() throws Exception {
         Connection nc = initConnection();
         System.out.println("connect.");
         Thread.sleep(1000);
