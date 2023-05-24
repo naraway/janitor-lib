@@ -1,5 +1,5 @@
-rootProject.name = "janitor-lib"
-include "janitor-lib"
-include "janitor-lib-kafka"
+rootProject.name = 'janitor-lib'
+include 'janitor-lib'
+include 'janitor-lib-kafka'
 include 'janitor-lib-nats'
-include "janitor-lib-local"
+include 'janitor-lib-local'

@@ -1,3 +1,0 @@
-# spring.factories
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-    io.naraway.janitor.configuration.NatsConfiguration

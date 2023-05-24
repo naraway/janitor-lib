@@ -1,0 +1,3 @@
+# Janitor
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+io.naraway.janitor.autoconfigure.JanitorAutoConfiguration

@@ -1,14 +1,18 @@
 dependencies {
-    api project(":janitor-lib")
-    implementation("io.naraway:accent:${accentVersion}")
+    api project(":${serviceName}")
+    api "io.nats:jnats:${jnatsVersion}"
 
-    implementation("io.nats:jnats:2.13.2")
+    implementation "io.naraway:accent:${accentVersion}"
+    implementation "org.springframework.boot:spring-boot:${springBootVersion}"
+    implementation "org.springframework.boot:spring-boot-autoconfigure:${springBootVersion}"
+    implementation "org.springframework:spring-tx:${springVersion}"
+    implementation "jakarta.annotation:jakarta.annotation-api:${jakartaAnnotationApiVersion}"
 
-    implementation("org.springframework.boot:spring-boot:${springBootVersion}")
-    implementation("org.springframework:spring-tx:${springVersion}")
-    implementation("jakarta.annotation:jakarta.annotation-api:${jakartaAnnotationVersion}")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.2")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.8.2")
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.+'
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.+'
+    testImplementation 'org.codehaus.groovy:groovy-all:3.+'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.+'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.+'
 }
 
 publishing {
