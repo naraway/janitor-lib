@@ -6,9 +6,9 @@ plugins {
 
 ext {
     serviceName = 'janitor-lib'
-    serviceVersion = '4.1.0-SNAPSHOT'
+    serviceVersion = '4.1.0'
 
-    accentVersion = '4.1.+'
+    accentVersion = '4.1.2'
     lombokVersion = '1.18.24'
     springBootVersion = '2.7.6'
     springVersion = '5.3.24'
@@ -40,6 +40,7 @@ subprojects {
     apply plugin: 'groovy'
     apply plugin: 'java-library'
     apply plugin: 'maven-publish'
+    apply plugin: 'maven' // on gradle 6.x for publish maven central
     apply plugin: 'signing'
     apply plugin: 'io.spring.dependency-management'
     apply plugin: 'name.remal.sonarlint'
@@ -83,6 +84,8 @@ subprojects {
     test {
         useJUnitPlatform()
     }
+
+//    apply from: '../publish.gradle'
 }
 
 task printServiceName() {
