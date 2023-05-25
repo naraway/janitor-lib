@@ -5,9 +5,9 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-web:${springBootVersion}"
     implementation "org.springframework:spring-tx:${springVersion}"
 
-    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.+'
-    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.+'
-    testImplementation 'org.codehaus.groovy:groovy-all:3.+'
+    testImplementation "org.springframework.boot:spring-boot-starter-test:${springBootVersion}"
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
+    testImplementation 'org.codehaus.groovy:groovy-all:3.0.17'
 }
 
 publishing {
